@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     int i;
     for (i = optind; i < argc; i++)
     {
-        argv_child[j] = malloc(strlen(argv[i]));
+        argv_child[j] = malloc(strlen(argv[i])+1);
         strcpy(argv_child[j++], argv[i]);
     }
     argv_child[j] = NULL;

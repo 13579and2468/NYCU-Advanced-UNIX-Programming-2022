@@ -196,6 +196,18 @@ FILE *fopen(const char *pathname, const char *mode){
     return r;
 }
 
+FILE *fopen64(const char *pathname, const char *mode)
+{
+    if (!old_fopen64)
+        old_fopen64 = (FILE * (*)(const char *pathname, const char *mode)) get_old_func(__func__);
+
+    dprintf(OUTFILE_FD, "[logger] %s(%s, %s) = ", __func__, arg2str(pathname, "path").c_str(), arg2str(mode, "mode").c_str());
+    FILE *r = old_fopen64(pathname, mode);
+    dprintf(OUTFILE_FD, "%p\n", r);
+
+    return r;
+}
+
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
     if (!old_fread)
         old_fread = (size_t (*)(void *ptr, size_t size, size_t nmemb, FILE *stream))get_old_func(__func__);
@@ -235,6 +247,27 @@ int open(const char *pathname, int flags, ...){
     int r = old_open(pathname, flags, mode);
     dprintf(OUTFILE_FD, "%d\n", r);
     
+    return r;
+}
+
+int open64(const char *pathname, int flags, ...)
+{
+    if (!old_open64)
+        old_open64 = (int (*)(const char *pathname, int flags, ...))get_old_func(__func__);
+
+    int mode = 0;
+    if (__OPEN_NEEDS_MODE(flags))
+    {
+        __builtin_va_list arg;
+        __builtin_va_start(arg, flags);
+        mode = __builtin_va_arg(arg, int);
+        __builtin_va_end(arg);
+    }
+
+    dprintf(OUTFILE_FD, "[logger] %s(%s, %s, %s) = ", __func__, arg2str(pathname, "path").c_str(), arg2str(flags, "mode").c_str(), arg2str(mode, "mode").c_str());
+    int r = old_open64(pathname, flags, mode);
+    dprintf(OUTFILE_FD, "%d\n", r);
+
     return r;
 }
 

@@ -23,6 +23,7 @@ int main()
     char buffer[20]; // Buffer to store data
     FILE *stream;
     stream = fopen("includehelp.txt", "r");
+    int j = open("includehelp.txt",O_RDWR);
     int count = fread(&buffer, sizeof(char), 20, stream);
     fclose(stream);
     // Printing data to check validity

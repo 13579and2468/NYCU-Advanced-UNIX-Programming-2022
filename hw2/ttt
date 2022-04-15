@@ -1,0 +1,4 @@
+[logger] fopen("/proc/filesystems", "re") = 0x55eadb923f40
+[logger] fclose("/proc/filesystems") = 0
+[logger] fclose("/dev/pts/4") = 0
+[logger] fclose("/dev/pts/4") = 0

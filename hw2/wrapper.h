@@ -36,9 +36,11 @@ static int (*old_close)(int fd) = NULL;                        /* function point
 static int (*old_creat)(const char *pathname, mode_t mode) = NULL; /* function pointer */
 static int (*old_fclose)(FILE *stream) = NULL;                     /* function pointer */
 static FILE *(*old_fopen)(const char *pathname, const char *mode) = NULL; /* function pointer */
+static FILE *(*old_fopen64)(const char *pathname, const char *mode) = NULL; /* function pointer */
 static size_t (*old_fread)(void *ptr, size_t size, size_t nmemb, FILE *stream) = NULL; /* function pointer */
 static size_t (*old_fwrite)(const void *ptr, size_t size, size_t nmemb, FILE *stream) = NULL; /* function pointer */
 static int (*old_open)(const char *pathname, int flags, ...) = NULL;                  /* function pointer */
+static int (*old_open64)(const char *pathname, int flags, ...) = NULL;                  /* function pointer */
 static ssize_t (*old_read)(int fd, void *buf, size_t count) = NULL;                           /* function pointer */
 static int (*old_remove)(const char *pathname) = NULL;
 static int (*old_rename)(const char *old_filename, const char *new_filename) = NULL;
@@ -53,9 +55,11 @@ extern "C"
     int creat(const char *pathname, mode_t mode);
     int fclose(FILE *stream);
     FILE *fopen(const char *pathname, const char *mode);
+    FILE *fopen64(const char *pathname, const char *mode);
     size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
     size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
     int open(const char *pathname, int flags,...);
+    int open64(const char *pathname, int flags, ...);
     ssize_t read(int fd, void *buf, size_t count);
     int remove(const char *pathname);
     int rename(const char *old_filename, const char *new_filename);
