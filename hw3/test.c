@@ -1,8 +1,9 @@
-#include "libmini.h"
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <signal.h>
 
-int errno;
-
-char* errorlist[134] = {
+char *errorlist[134] = {
     "Operation not permitted"
     "No such file or directory"
     "No such process"
@@ -135,151 +136,11 @@ char* errorlist[134] = {
     "Owner died"
     "State not recoverable"
     "Operation not possible due to RF-kill"
-    "Memory page has hardware error"
-};
+    "Memory page has hardware error"};
 
-long int syscall(long int sysno, ...)
+extern int errno;
+int main()
 {
-    __builtin_va_list args;
-    long int arg0, arg1, arg2, arg3, arg4, arg5;
-    long int sys_res = 0;
-
-    /* Load varargs */
-    __builtin_va_start(args, sysno);
-    arg0 = __builtin_va_arg(args, long int);
-    arg1 = __builtin_va_arg(args, long int);
-    arg2 = __builtin_va_arg(args, long int);
-    arg3 = __builtin_va_arg(args, long int);
-    arg4 = __builtin_va_arg(args, long int);
-    arg5 = __builtin_va_arg(args, long int);
-    __builtin_va_end(args);
-
-    asm volatile("mov rax, %1\n"
-                 "mov rdi, %2\n"
-                 "mov rsi, %3\n"
-                 "mov rdx, %4\n"
-                 "mov r10, %5\n"
-                 "mov r8,  %6\n"
-                 "mov r9,  %7\n"
-                 "syscall\n"
-                 "mov %0, rax\n"
-                 : "=r"(sys_res)
-                 : "r"(sysno), "r"(arg0), "r"(arg1), "r"(arg2), "r"(arg3), "r"(arg4), "r"(arg5)
-                 : "rax","rdi","rsi","rdx","r10","r8","r9");
-
-    if(sys_res < 0)
-    {
-        errno = -sys_res;
-    }
-    return sys_res;
-}
-
-ssize_t write(int fd, const void *buf, size_t n)
-{
-    return syscall(1,fd,buf,n);
-}
-
-int pause()
-{
-    return syscall(34);
-}
-
-unsigned int sleep(unsigned int seconds)
-{
-    struct timespec ts = {0, 0};
-    do
-    {
-        ts.tv_sec = seconds;
-        seconds = 0;
-        if (syscall(35, &ts, &ts) < 0)
-            return seconds + ts.tv_sec;
-    } while (seconds > 0);
+    fprintf(stderr, "%llx\n", SA_RESTART);
     return 0;
-}
-
-void exit(int errno)
-{
-    syscall(60, errno);
-}
-
-size_t strlen(const char *str)
-{
-    size_t count = 0;
-    while ((unsigned char)*str++)
-        count++;
-    return count;
-}
-
-unsigned int alarm(unsigned int seconds)
-{
-    return syscall(37, seconds);
-}
-
-int sigemptyset(sigset_t *set)
-{
-    *set = 0;
-    return 0;
-}
-
-int sigfillset(sigset_t *set)
-{
-    *set = 0xffffffffffffffff;
-    return 0;
-}
-
-int sigaddset(sigset_t *set, int sig)
-{
-    *set |= (1UL << (sig - 1));
-    return 0;
-}
-
-int sigdelset(sigset_t *set, int sig)
-{
-    *set &= ~(1UL << (sig - 1));
-    return 0;
-}
-
-int sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
-{
-    return syscall(14, how, set, oldset, sizeof(sigset_t));
-}
-
-int sigpending(sigset_t *set)
-{
-    return syscall(127, set, sizeof(sigset_t));
-}
-
-void perror(const char *s)
-{
-    int errno_save = errno;
-    if(s && *s)
-    {
-        write(2, s, strlen(s));
-        write(2, ": ", 2);
-        if (errno_save >= sizeof(errorlist) / 8)
-        {
-            write(2, "Unknown error ", sizeof("Unknown error "));  //itoa好麻煩
-        }else
-        {
-            write(2, errorlist[errno_save], strlen(errorlist[errno_save]));
-        }
-        write(2, "\n", 1);
-    }
-}
-
-int sigismember(const sigset_t *set, int sig)
-{
-    return (*set & (1UL << (sig - 1))) != 0;
-}
-
-sighandler_t signal(int signum, sighandler_t handler)
-{
-    struct sigaction act, oact;
-    act.sa_handler = handler;
-    sigemptyset(&act.sa_mask);
-    sigaddset(&act.sa_mask, signum);
-    act.sa_flags = SA_RESTART | SA_RESTORE;
-    act.sa_restorer = __myrt;
-    syscall(13, signum, &act, &oact, sizeof(sigset_t));
-    return oact.sa_handler;
 }

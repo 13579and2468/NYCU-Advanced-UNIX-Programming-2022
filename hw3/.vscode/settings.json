@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "libmini.h": "c",
+        "string.h": "c",
+        "signal.h": "c"
+    }
+}
