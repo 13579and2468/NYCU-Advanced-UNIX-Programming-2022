@@ -170,7 +170,9 @@ long int syscall(long int sysno, ...)
     if(sys_res < 0)
     {
         errno = -sys_res;
+        sys_res = -1;
     }
+    
     return sys_res;
 }
 
