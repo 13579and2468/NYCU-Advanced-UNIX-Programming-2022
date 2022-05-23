@@ -7,7 +7,8 @@ __myrt:
 global setjmp:function
 setjmp:
     mov     [rdi], rbx
-    mov     [rdi+0x8], rsp
+    lea     rsi, [rsp-0x8]
+    mov     [rdi+0x8], rsi
     mov     [rdi+0x10], rbp
     mov     [rdi+0x18], r12
     mov     [rdi+0x20], r13
