@@ -2,7 +2,7 @@
 LIBNAME = capstone
 
 hw4: hw4.o
-	g++ hw4.cpp ptools.cpp -g3 -l$(LIBNAME)  -o hw4
+	g++ hw4.cpp -g3 -l$(LIBNAME)  -o hw4
 
 clean:
 	rm hw4

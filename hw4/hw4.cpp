@@ -9,7 +9,6 @@
 
 #include <capstone/capstone.h>
 
-#include "disas.hpp"
 #include <string>
 #include <map>
 #include <iostream>
@@ -19,6 +18,8 @@
 #include <fstream>
 
 using namespace std;
+
+#define INS_MAX_LEN 15
 
 void help();
 void load(string);
@@ -34,6 +35,17 @@ void vmmap();
 unsigned long get_addr();
 void reset_all_breakpoint();
 void si_and_restore_break();
+void disas();
+
+static unsigned long elf_text_segment_start = 0;
+static unsigned long elf_text_segment_end = 0xffffffffffffffff;
+void store_seg_range(string process_name);
+
+void errquit(const char *msg)
+{
+    perror(msg);
+    exit(-1);
+}
 
 typedef struct breakpoint
 {
@@ -109,11 +121,65 @@ int main(int argc, char *argv[])
         {
             vmmap();
         }
+        else if (cmd == "disasm" || cmd == "d")
+        {
+            disas();
+        }
     }
 
     return 0;
 }
 
+void disas()
+{
+    unsigned long addr = get_addr();
+    if (addr == 0xffffffffffffffff)return;
+
+    struct user_regs_struct regs;
+    ptrace(PTRACE_GETREGS, child, 0, &regs);
+
+    csh handle;
+    cs_insn *insn;
+    size_t count;
+
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+        return;
+
+    for (int i = 0; i < 10;i++)
+    {
+        
+        if(regs.rip < elf_text_segment_start || regs.rip >= elf_text_segment_end)
+        {
+            cerr << "** the address is out of the range of the text segment" << endl;
+            break;
+        }
+        unsigned long code[2]; // 16 byte > MAX_INS_LEN(15)
+        code[0] = ptrace(PTRACE_PEEKDATA, child, regs.rip, 0);
+        code[1] = ptrace(PTRACE_PEEKDATA, child, regs.rip + 8, 0);
+
+        // restore 0xcc to savecode of breakpoint
+        unsigned char *code_str = (unsigned char *)code;
+        for (auto b : breakpoints)
+        {
+            if(b.second.addr >= regs.rip && b.second.addr <= regs.rip + 15)
+            {
+                code_str[b.second.addr - regs.rip] = b.second.savecode;
+            }
+        }
+
+        count = cs_disasm(handle, (unsigned char*)code, sizeof(code), regs.rip, 1, &insn);
+        stringstream ss;
+        ss << hex << insn[0].address << ": ";
+        for (int j = 0; j < insn[0].size; j++)
+        {
+            ss << setw(2) << setfill('0') << hex << (unsigned long)insn[0].bytes[j] << ' ';
+        }
+        cerr << setw(64) << left << ss.str();
+        cerr << "\t" << insn[0].mnemonic << "\t" << insn[0].op_str << endl;
+        cs_free(insn, count);
+        regs.rip += insn[0].size;
+    }
+}
 void vmmap()
 {
     string filename = "/proc/" + to_string(child) + "/maps";
@@ -138,10 +204,12 @@ void vmmap()
             cerr << " " << hex << offset;
             string path;
             string ignore;
-            ss >> ignore >> ignore >> path;
-            cerr << " " << path << endl;
+            {
+                ss >> ignore >> ignore >> path;
+                cerr << " " << path << endl;
+            }
+            myfile.close();
         }
-        myfile.close();
     }
 }
 
@@ -368,9 +436,11 @@ void load(string proc_name)
         struct user_regs_struct regs;
         ptrace(PTRACE_GETREGS, child, 0, &regs);
         cerr << "** program '" << process_name << "' loaded. entry point "<< "0x" << hex << regs.rip << endl;
+        elf_text_segment_start = regs.rip;
         process_name = process_name;
         state = "loaded";
         reset_all_breakpoint();
+        store_seg_range(process_name);
     }
 }
 
@@ -447,4 +517,73 @@ void si_and_restore_break()
 
     /* restore break point */
     reset_all_breakpoint();
+}
+
+//only supprot little endina elf x64
+void store_seg_range(string process_name)
+{
+    FILE *file;
+    if ((file = fopen(process_name.c_str(), "rb")))
+    {
+        // section header offset
+        unsigned long seg_headers_off;
+        fseek(file, 0x28, SEEK_SET);
+        fread(&seg_headers_off, 1, 8, file);
+
+        // section header size
+        unsigned long e_shentsize = 0;
+        fseek(file, 0x3a, SEEK_SET);
+        fread(&e_shentsize, 1, 2, file);
+
+        //index of section header name section
+        unsigned long e_shstrndx = 0;
+        fseek(file, 0x3e, SEEK_SET);
+        fread(&e_shstrndx, 1, 2, file);
+
+        //index of section header name section
+        unsigned long e_shnum = 0;
+        fseek(file, 0x3c, SEEK_SET);
+        fread(&e_shnum, 1, 2, file);
+
+        unsigned long e_shstrn_off = seg_headers_off + e_shstrndx * e_shentsize;
+        unsigned long e_shstrn_context_off = 0;
+        fseek(file, e_shstrn_off + 0x18, SEEK_SET);
+        fread(&e_shstrn_context_off, 1, 8, file);
+
+        for (unsigned long i = 0; i < e_shnum; i++)
+        {
+            unsigned long name_off_in_shstr = 0;
+            fseek(file, seg_headers_off + e_shentsize * i, SEEK_SET);
+            fread(&name_off_in_shstr, 1, 4, file);
+
+            char name[0x30] = {};
+            fseek(file, name_off_in_shstr + e_shstrn_context_off, SEEK_SET);
+            fread(name, 1, 0x30, file);
+
+            if (strncmp(name, ".text", 6) == 0)
+            {
+                unsigned long text_section_addr = 0;
+                fseek(file, seg_headers_off + e_shentsize * i + 0x10, SEEK_SET);
+                fread(&text_section_addr, 1, 8, file);
+
+                unsigned long text_section_size = 0;
+                fseek(file, seg_headers_off + e_shentsize * i + 0x20, SEEK_SET);
+                fread(&text_section_size, 1, 8, file);
+
+                if(elf_text_segment_start == text_section_addr)
+                {
+                    elf_text_segment_end = elf_text_segment_start + text_section_size;
+                }else
+                {
+                    perror("elf parse error (maybe use unsupport elf32/bigendian elf/pie)");
+                }
+                break;
+            }
+        }
+        fclose(file);
+    }
+    else
+    {
+        errquit("open file error");
+    }
 }
