@@ -348,7 +348,7 @@ void si()
     {
         for(auto b : breakpoints)
         {
-            if(b.second.addr = regs.rip)
+            if (b.second.addr == regs.rip)
             {
                 restore_idx = b.first;
                 break;
